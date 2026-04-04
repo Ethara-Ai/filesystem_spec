@@ -26,15 +26,7 @@ def async_wrapper(func, obj=None, semaphore=None):
     coroutine
         An awaitable version of the function.
     """
-
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        if semaphore:
-            async with semaphore:
-                return await asyncio.to_thread(func, *args, **kwargs)
-        return await asyncio.to_thread(func, *args, **kwargs)
-
-    return wrapper
+    pass
 
 
 class AsyncFileSystemWrapper(AsyncFileSystem, ChainedFileSystem):
@@ -74,27 +66,12 @@ class AsyncFileSystemWrapper(AsyncFileSystem, ChainedFileSystem):
         self.semaphore = semaphore
         self._wrap_all_sync_methods()
 
-    @property
-    def fsid(self):
-        return f"async_{self.sync_fs.fsid}"
 
     def _wrap_all_sync_methods(self):
         """
         Wrap all synchronous methods of the underlying filesystem with asynchronous versions.
         """
-        excluded_methods = {"open"}
-        for method_name in dir(self.sync_fs):
-            if method_name.startswith("_") or method_name in excluded_methods:
-                continue
-
-            attr = inspect.getattr_static(self.sync_fs, method_name)
-            if isinstance(attr, property):
-                continue
-
-            method = getattr(self.sync_fs, method_name)
-            if callable(method) and not inspect.iscoroutinefunction(method):
-                async_method = async_wrapper(method, obj=self, semaphore=self.semaphore)
-                setattr(self, f"_{method_name}", async_method)
+        pass
 
     @classmethod
     def wrap_class(cls, sync_fs_class):
@@ -112,13 +89,4 @@ class AsyncFileSystemWrapper(AsyncFileSystem, ChainedFileSystem):
         type
             A new class that wraps the provided synchronous filesystem class.
         """
-
-        class GeneratedAsyncFileSystemWrapper(cls):
-            def __init__(self, *args, **kwargs):
-                sync_fs = sync_fs_class(*args, **kwargs)
-                super().__init__(sync_fs)
-
-        GeneratedAsyncFileSystemWrapper.__name__ = (
-            f"Async{sync_fs_class.__name__}Wrapper"
-        )
-        return GeneratedAsyncFileSystemWrapper
+        pass

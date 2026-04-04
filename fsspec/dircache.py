@@ -61,8 +61,6 @@ class DirCache(MutableMapping):
             self._q(item)
         return self._cache[item]  # maybe raises KeyError
 
-    def clear(self):
-        self._cache.clear()
 
     def __len__(self):
         return len(self._cache)

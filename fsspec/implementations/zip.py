@@ -69,10 +69,6 @@ class ZipFileSystem(AbstractArchiveFileSystem):
         )
         self.dir_cache = None
 
-    @classmethod
-    def _strip_protocol(cls, path):
-        # zip file paths are always relative to the archive root
-        return super()._strip_protocol(path).lstrip("/")
 
     def __del__(self):
         if hasattr(self, "zip"):
@@ -81,101 +77,8 @@ class ZipFileSystem(AbstractArchiveFileSystem):
 
     def close(self):
         """Commits any write changes to the file. Done on ``del`` too."""
-        self.zip.close()
+        pass
 
-    def _get_dirs(self):
-        if self.dir_cache is None or self.mode in set("wa"):
-            # when writing, dir_cache is always in the ZipFile's attributes,
-            # not read from the file.
-            files = self.zip.infolist()
-            self.dir_cache = {
-                dirname.rstrip("/"): {
-                    "name": dirname.rstrip("/"),
-                    "size": 0,
-                    "type": "directory",
-                }
-                for dirname in self._all_dirnames(self.zip.namelist())
-            }
-            for z in files:
-                f = {s: getattr(z, s, None) for s in zipfile.ZipInfo.__slots__}
-                f.update(
-                    {
-                        "name": z.filename.rstrip("/"),
-                        "size": z.file_size,
-                        "type": ("directory" if z.is_dir() else "file"),
-                    }
-                )
-                self.dir_cache[f["name"]] = f
 
-    def pipe_file(self, path, value, **kwargs):
-        # override upstream, because we know the exact file size in this case
-        self.zip.writestr(path, value, **kwargs)
 
-    def _open(
-        self,
-        path,
-        mode="rb",
-        block_size=None,
-        autocommit=True,
-        cache_options=None,
-        **kwargs,
-    ):
-        path = self._strip_protocol(path)
-        if "r" in mode and self.mode in set("wa"):
-            if self.exists(path):
-                raise OSError("ZipFS can only be open for reading or writing, not both")
-            raise FileNotFoundError(path)
-        if "r" in self.mode and "w" in mode:
-            raise OSError("ZipFS can only be open for reading or writing, not both")
-        out = self.zip.open(path, mode.strip("b"), force_zip64=self.force_zip_64)
-        if "r" in mode:
-            info = self.info(path)
-            out.size = info["size"]
-            out.name = info["name"]
-        return out
 
-    def find(self, path, maxdepth=None, withdirs=False, detail=False, **kwargs):
-        if maxdepth is not None and maxdepth < 1:
-            raise ValueError("maxdepth must be at least 1")
-
-        def to_parts(_path: str):
-            return list(filter(None, _path.replace("\\", "/").split("/")))
-
-        if not isinstance(path, str):
-            path = str(path)
-
-        # Remove the leading slash, as the zip file paths are always
-        # given without a leading slash
-        path = path.lstrip("/")
-        path_parts = to_parts(path)
-        path_depth = len(path_parts)
-
-        self._get_dirs()
-
-        result = {}
-        # To match posix find, if an exact file name is given, we should
-        # return only that file
-        if path in self.dir_cache and self.dir_cache[path]["type"] == "file":
-            result[path] = self.dir_cache[path]
-            return result if detail else [path]
-
-        for file_path, file_info in self.dir_cache.items():
-            if len(file_parts := to_parts(file_path)) < path_depth or any(
-                a != b for a, b in zip(path_parts, file_parts)
-            ):
-                # skip parent folders and mismatching paths
-                continue
-
-            if file_info["type"] == "directory":
-                if withdirs and file_path not in result:
-                    result[file_path.strip("/")] = file_info
-                continue
-
-            if file_path not in result:
-                result[file_path] = file_info if detail else None
-
-        if maxdepth:
-            result = {
-                k: v for k, v in result.items() if k.count("/") < maxdepth + path_depth
-            }
-        return result if detail else sorted(result)

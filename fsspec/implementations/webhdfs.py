@@ -144,60 +144,8 @@ class WebHDFS(AbstractFileSystem):
 
         self._fsid = f"webhdfs_{tokenize(host, port)}"
 
-    @property
-    def fsid(self):
-        return self._fsid
 
-    def _connect(self):
-        self.session = requests.Session()
 
-        if self.session_cert:
-            self.session.cert = self.session_cert
-
-        self.session.verify = self.session_verify
-
-        if self.kerb:
-            from requests_kerberos import HTTPKerberosAuth
-
-            self.session.auth = HTTPKerberosAuth(**self.kerb_kwargs)
-
-        if self.user is not None and self.password is not None:
-            from requests.auth import HTTPBasicAuth
-
-            self.session.auth = HTTPBasicAuth(self.user, self.password)
-
-    def _call(self, op, method="get", path=None, data=None, redirect=True, **kwargs):
-        path = self._strip_protocol(path) if path is not None else ""
-        url = self._apply_proxy(self.url + quote(path, safe="/="))
-        args = kwargs.copy()
-        args.update(self.pars)
-        args["op"] = op.upper()
-        logger.debug("sending %s with %s", url, method)
-        out = self.session.request(
-            method=method.upper(),
-            url=url,
-            params=args,
-            data=data,
-            allow_redirects=redirect,
-        )
-        if out.status_code in [400, 401, 403, 404, 500]:
-            try:
-                err = out.json()
-                msg = err["RemoteException"]["message"]
-                exp = err["RemoteException"]["exception"]
-            except (ValueError, KeyError):
-                pass
-            else:
-                if exp in ["IllegalArgumentException", "UnsupportedOperationException"]:
-                    raise ValueError(msg)
-                elif exp in ["SecurityException", "AccessControlException"]:
-                    raise PermissionError(msg)
-                elif exp in ["FileNotFoundException"]:
-                    raise FileNotFoundError(msg)
-                else:
-                    raise RuntimeError(msg)
-        out.raise_for_status()
-        return out
 
     def _open(
         self,
@@ -232,92 +180,32 @@ class WebHDFS(AbstractFileSystem):
         -------
         WebHDFile instance
         """
-        block_size = block_size or self.blocksize
-        return WebHDFile(
-            self,
-            path,
-            mode=mode,
-            block_size=block_size,
-            tempdir=self.tempdir,
-            autocommit=autocommit,
-            replication=replication,
-            permissions=permissions,
-        )
+        pass
 
-    @staticmethod
-    def _process_info(info):
-        info["type"] = info["type"].lower()
-        info["size"] = info["length"]
-        return info
 
-    @classmethod
-    def _strip_protocol(cls, path):
-        return infer_storage_options(path)["path"]
 
-    @staticmethod
-    def _get_kwargs_from_urls(urlpath):
-        out = infer_storage_options(urlpath)
-        out.pop("path", None)
-        out.pop("protocol", None)
-        if "username" in out:
-            out["user"] = out.pop("username")
-        return out
 
-    def info(self, path):
-        out = self._call("GETFILESTATUS", path=path)
-        info = out.json()["FileStatus"]
-        info["name"] = path
-        return self._process_info(info)
 
     def created(self, path):
         """Return the created timestamp of a file as a datetime.datetime"""
-        # The API does not provide creation time, so we use modification time
-        info = self.info(path)
-        mtime = info.get("modificationTime", None)
-        if mtime is not None:
-            return datetime.fromtimestamp(mtime / 1000)
-        raise RuntimeError("Could not retrieve creation time (modification time).")
+        pass
 
     def modified(self, path):
         """Return the modified timestamp of a file as a datetime.datetime"""
-        info = self.info(path)
-        mtime = info.get("modificationTime", None)
-        if mtime is not None:
-            return datetime.fromtimestamp(mtime / 1000)
-        raise RuntimeError("Could not retrieve modification time.")
+        pass
 
-    def ls(self, path, detail=False, **kwargs):
-        out = self._call("LISTSTATUS", path=path)
-        infos = out.json()["FileStatuses"]["FileStatus"]
-        for info in infos:
-            self._process_info(info)
-            info["name"] = path.rstrip("/") + "/" + info["pathSuffix"]
-        if detail:
-            return sorted(infos, key=lambda i: i["name"])
-        else:
-            return sorted(info["name"] for info in infos)
 
     def content_summary(self, path):
         """Total numbers of files, directories and bytes under path"""
-        out = self._call("GETCONTENTSUMMARY", path=path)
-        return out.json()["ContentSummary"]
+        pass
 
     def ukey(self, path):
         """Checksum info of file, giving method and result"""
-        out = self._call("GETFILECHECKSUM", path=path, redirect=False)
-        if "Location" in out.headers:
-            location = self._apply_proxy(out.headers["Location"])
-            out2 = self.session.get(location)
-            out2.raise_for_status()
-            return out2.json()["FileChecksum"]
-        else:
-            out.raise_for_status()
-            return out.json()["FileChecksum"]
+        pass
 
     def home_directory(self):
         """Get user's home directory"""
-        out = self._call("GETHOMEDIRECTORY")
-        return out.json()["Path"]
+        pass
 
     def get_delegation_token(self, renewer=None):
         """Retrieve token which can give the same authority to other uses
@@ -327,23 +215,15 @@ class WebHDFS(AbstractFileSystem):
         renewer: str or None
             User who may use this token; if None, will be current user
         """
-        if renewer:
-            out = self._call("GETDELEGATIONTOKEN", renewer=renewer)
-        else:
-            out = self._call("GETDELEGATIONTOKEN")
-        t = out.json()["Token"]
-        if t is None:
-            raise ValueError("No token available for this user/security context")
-        return t["urlString"]
+        pass
 
     def renew_delegation_token(self, token):
         """Make token live longer. Returns new expiry time"""
-        out = self._call("RENEWDELEGATIONTOKEN", method="put", token=token)
-        return out.json()["long"]
+        pass
 
     def cancel_delegation_token(self, token):
         """Stop the token from being useful"""
-        self._call("CANCELDELEGATIONTOKEN", method="put", token=token)
+        pass
 
     def chmod(self, path, mod):
         """Set the permission at path
@@ -356,16 +236,11 @@ class WebHDFS(AbstractFileSystem):
             posix epresentation or permission, give as oct string, e.g, '777'
             or 0o777
         """
-        self._call("SETPERMISSION", method="put", path=path, permission=mod)
+        pass
 
     def chown(self, path, owner=None, group=None):
         """Change owning user and/or group"""
-        kwargs = {}
-        if owner is not None:
-            kwargs["owner"] = owner
-        if group is not None:
-            kwargs["group"] = group
-        self._call("SETOWNER", method="put", path=path, **kwargs)
+        pass
 
     def set_replication(self, path, replication):
         """
@@ -379,52 +254,14 @@ class WebHDFS(AbstractFileSystem):
             Number of copies of file on the cluster. Should be smaller than
             number of data nodes; normally 3 on most systems.
         """
-        self._call("SETREPLICATION", path=path, method="put", replication=replication)
+        pass
 
-    def mkdir(self, path, **kwargs):
-        self._call("MKDIRS", method="put", path=path)
 
-    def makedirs(self, path, exist_ok=False):
-        if exist_ok is False and self.exists(path):
-            raise FileExistsError(path)
-        self.mkdir(path)
 
-    def mv(self, path1, path2, **kwargs):
-        self._call("RENAME", method="put", path=path1, destination=path2)
 
-    def rm(self, path, recursive=False, **kwargs):
-        self._call(
-            "DELETE",
-            method="delete",
-            path=path,
-            recursive="true" if recursive else "false",
-        )
 
-    def rm_file(self, path, **kwargs):
-        self.rm(path)
 
-    def cp_file(self, lpath, rpath, **kwargs):
-        with self.open(lpath) as lstream:
-            tmp_fname = "/".join([self._parent(rpath), f".tmp.{secrets.token_hex(16)}"])
-            # Perform an atomic copy (stream to a temporary file and
-            # move it to the actual destination).
-            try:
-                with self.open(tmp_fname, "wb") as rstream:
-                    shutil.copyfileobj(lstream, rstream)
-                self.mv(tmp_fname, rpath)
-            except BaseException:
-                with suppress(FileNotFoundError):
-                    self.rm(tmp_fname)
-                raise
 
-    def _apply_proxy(self, location):
-        if self.proxy and callable(self.proxy):
-            location = self.proxy(location)
-        elif self.proxy:
-            # as a dict
-            for k, v in self.proxy.items():
-                location = location.replace(k, v, 1)
-        return location
 
 
 class WebHDFile(AbstractBufferedFile):
@@ -452,52 +289,11 @@ class WebHDFile(AbstractBufferedFile):
             This is the last block, so should complete file, if
             self.autocommit is True.
         """
-        out = self.fs.session.post(
-            self.location,
-            data=self.buffer.getvalue(),
-            headers={"content-type": "application/octet-stream"},
-        )
-        out.raise_for_status()
-        return True
+        pass
 
     def _initiate_upload(self):
         """Create remote file/upload"""
-        kwargs = self.kwargs.copy()
-        if "a" in self.mode:
-            op, method = "APPEND", "POST"
-        else:
-            op, method = "CREATE", "PUT"
-            kwargs["overwrite"] = "true"
-        out = self.fs._call(op, method, self.path, redirect=False, **kwargs)
-        location = self.fs._apply_proxy(out.headers["Location"])
-        if "w" in self.mode:
-            # create empty file to append to
-            out2 = self.fs.session.put(
-                location, headers={"content-type": "application/octet-stream"}
-            )
-            out2.raise_for_status()
-            # after creating empty file, change location to append to
-            out2 = self.fs._call("APPEND", "POST", self.path, redirect=False, **kwargs)
-            self.location = self.fs._apply_proxy(out2.headers["Location"])
+        pass
 
-    def _fetch_range(self, start, end):
-        start = max(start, 0)
-        end = min(self.size, end)
-        if start >= end or start >= self.size:
-            return b""
-        out = self.fs._call(
-            "OPEN", path=self.path, offset=start, length=end - start, redirect=False
-        )
-        out.raise_for_status()
-        if "Location" in out.headers:
-            location = out.headers["Location"]
-            out2 = self.fs.session.get(self.fs._apply_proxy(location))
-            return out2.content
-        else:
-            return out.content
 
-    def commit(self):
-        self.fs.mv(self.path, self.target)
 
-    def discard(self):
-        self.fs.rm(self.path)

@@ -66,16 +66,7 @@ class DatabricksFileSystem(AbstractFileSystem):
         Returns listing, if found (may be empty list for a directory that
         exists but contains nothing), None if not in cache.
         """
-        self.dircache.pop(path.rstrip("/"), None)
-
-        parent = self._parent(path)
-        if parent in self.dircache:
-            for entry in self.dircache[parent]:
-                if entry["name"] == path.rstrip("/"):
-                    if entry["type"] != "directory":
-                        return [entry]
-                    return []
-            raise FileNotFoundError(path)
+        pass
 
     def ls(self, path, detail=True, **kwargs):
         """
@@ -90,39 +81,7 @@ class DatabricksFileSystem(AbstractFileSystem):
             but also additional information on file sizes
             and types.
         """
-        try:
-            out = self._ls_from_cache(path)
-        except FileNotFoundError:
-            # This happens if the `path`'s parent was cached, but `path` is not
-            # there. This suggests that `path` is new since the parent was
-            # cached. Attempt to invalidate parent's cache before continuing.
-            self.dircache.pop(self._parent(path), None)
-            out = None
-
-        if not out:
-            try:
-                r = self._send_to_api(
-                    method="get", endpoint="list", json={"path": path}
-                )
-            except DatabricksException as e:
-                if e.error_code == "RESOURCE_DOES_NOT_EXIST":
-                    raise FileNotFoundError(e.message) from e
-
-                raise
-            files = r.get("files", [])
-            out = [
-                {
-                    "name": o["path"],
-                    "type": "directory" if o["is_dir"] else "file",
-                    "size": o["file_size"],
-                }
-                for o in files
-            ]
-            self.dircache[path] = out
-
-        if detail:
-            return out
-        return [o["name"] for o in out]
+        pass
 
     def makedirs(self, path, exist_ok=True):
         """
@@ -137,25 +96,7 @@ class DatabricksFileSystem(AbstractFileSystem):
             exists before creating it (and raises an
             Exception if this is the case)
         """
-        if not exist_ok:
-            try:
-                # If the following succeeds, the path is already present
-                self._send_to_api(
-                    method="get", endpoint="get-status", json={"path": path}
-                )
-                raise FileExistsError(f"Path {path} already exists")
-            except DatabricksException as e:
-                if e.error_code == "RESOURCE_DOES_NOT_EXIST":
-                    pass
-
-        try:
-            self._send_to_api(method="post", endpoint="mkdirs", json={"path": path})
-        except DatabricksException as e:
-            if e.error_code == "RESOURCE_ALREADY_EXISTS":
-                raise FileExistsError(e.message) from e
-
-            raise
-        self.invalidate_cache(self._parent(path))
+        pass
 
     def mkdir(self, path, create_parents=True, **kwargs):
         """
@@ -169,10 +110,7 @@ class DatabricksFileSystem(AbstractFileSystem):
             Whether to create all parents or not.
             "False" is not implemented so far.
         """
-        if not create_parents:
-            raise NotImplementedError
-
-        self.mkdirs(path, **kwargs)
+        pass
 
     def rm(self, path, recursive=False, **kwargs):
         """
@@ -185,23 +123,7 @@ class DatabricksFileSystem(AbstractFileSystem):
         recursive: bool
             Recursively delete all files in a folder.
         """
-        try:
-            self._send_to_api(
-                method="post",
-                endpoint="delete",
-                json={"path": path, "recursive": recursive},
-            )
-        except DatabricksException as e:
-            # This is not really an exception, it just means
-            # not everything was deleted so far
-            if e.error_code == "PARTIAL_DELETE":
-                self.rm(path=path, recursive=recursive)
-            elif e.error_code == "IO_ERROR":
-                # Using the same exception as the os module would use here
-                raise OSError(e.message) from e
-
-            raise
-        self.invalidate_cache(self._parent(path))
+        pass
 
     def mv(
         self, source_path, destination_path, recursive=False, maxdepth=None, **kwargs
@@ -228,26 +150,7 @@ class DatabricksFileSystem(AbstractFileSystem):
         maxdepth:
             Not implemented to far.
         """
-        if recursive:
-            raise NotImplementedError
-        if maxdepth:
-            raise NotImplementedError
-
-        try:
-            self._send_to_api(
-                method="post",
-                endpoint="move",
-                json={"source_path": source_path, "destination_path": destination_path},
-            )
-        except DatabricksException as e:
-            if e.error_code == "RESOURCE_DOES_NOT_EXIST":
-                raise FileNotFoundError(e.message) from e
-            elif e.error_code == "RESOURCE_ALREADY_EXISTS":
-                raise FileExistsError(e.message) from e
-
-            raise
-        self.invalidate_cache(self._parent(source_path))
-        self.invalidate_cache(self._parent(destination_path))
+        pass
 
     def _open(self, path, mode="rb", block_size="default", **kwargs):
         """
@@ -256,7 +159,7 @@ class DatabricksFileSystem(AbstractFileSystem):
 
         Only the default blocksize is allowed.
         """
-        return DatabricksFile(self, path, mode=mode, block_size=block_size, **kwargs)
+        pass
 
     def _send_to_api(self, method, endpoint, json):
         """
@@ -272,32 +175,7 @@ class DatabricksFileSystem(AbstractFileSystem):
         json: dict
             Dictionary of information to send
         """
-        if method == "post":
-            session_call = self.session.post
-        elif method == "get":
-            session_call = self.session.get
-        else:
-            raise ValueError(f"Do not understand method {method}")
-
-        url = urllib.parse.urljoin(f"https://{self.instance}/api/2.0/dbfs/", endpoint)
-
-        r = session_call(url, json=json)
-
-        # The DBFS API will return a json, also in case of an exception.
-        # We want to preserve this information as good as possible.
-        try:
-            r.raise_for_status()
-        except requests.HTTPError as e:
-            # try to extract json error message
-            # if that fails, fall back to the original exception
-            try:
-                exception_json = e.response.json()
-            except Exception:
-                raise e from None
-
-            raise DatabricksException(**exception_json) from e
-
-        return r.json()
+        pass
 
     def _create_handle(self, path, overwrite=True):
         """
@@ -317,18 +195,7 @@ class DatabricksFileSystem(AbstractFileSystem):
             If a file already exist at this location, either overwrite
             it or raise an exception.
         """
-        try:
-            r = self._send_to_api(
-                method="post",
-                endpoint="create",
-                json={"path": path, "overwrite": overwrite},
-            )
-            return r["handle"]
-        except DatabricksException as e:
-            if e.error_code == "RESOURCE_ALREADY_EXISTS":
-                raise FileExistsError(e.message) from e
-
-            raise
+        pass
 
     def _close_handle(self, handle):
         """
@@ -339,13 +206,7 @@ class DatabricksFileSystem(AbstractFileSystem):
         handle: str
             Which handle to close.
         """
-        try:
-            self._send_to_api(method="post", endpoint="close", json={"handle": handle})
-        except DatabricksException as e:
-            if e.error_code == "RESOURCE_DOES_NOT_EXIST":
-                raise FileNotFoundError(e.message) from e
-
-            raise
+        pass
 
     def _add_data(self, handle, data):
         """
@@ -362,20 +223,7 @@ class DatabricksFileSystem(AbstractFileSystem):
         data: bytes
             Block of data to add to the handle.
         """
-        data = base64.b64encode(data).decode()
-        try:
-            self._send_to_api(
-                method="post",
-                endpoint="add-block",
-                json={"handle": handle, "data": data},
-            )
-        except DatabricksException as e:
-            if e.error_code == "RESOURCE_DOES_NOT_EXIST":
-                raise FileNotFoundError(e.message) from e
-            elif e.error_code == "MAX_BLOCK_SIZE_EXCEEDED":
-                raise ValueError(e.message) from e
-
-            raise
+        pass
 
     def _get_data(self, path, start, end):
         """
@@ -392,27 +240,8 @@ class DatabricksFileSystem(AbstractFileSystem):
         end: int
             End position of the block
         """
-        try:
-            r = self._send_to_api(
-                method="get",
-                endpoint="read",
-                json={"path": path, "offset": start, "length": end - start},
-            )
-            return base64.b64decode(r["data"])
-        except DatabricksException as e:
-            if e.error_code == "RESOURCE_DOES_NOT_EXIST":
-                raise FileNotFoundError(e.message) from e
-            elif e.error_code in ["INVALID_PARAMETER_VALUE", "MAX_READ_SIZE_EXCEEDED"]:
-                raise ValueError(e.message) from e
+        pass
 
-            raise
-
-    def invalidate_cache(self, path=None):
-        if path is None:
-            self.dircache.clear()
-        else:
-            self.dircache.pop(path, None)
-        super().invalidate_cache(path)
 
 
 class DatabricksFile(AbstractBufferedFile):
@@ -458,39 +287,16 @@ class DatabricksFile(AbstractBufferedFile):
 
     def _initiate_upload(self):
         """Internal function to start a file upload"""
-        self.handle = self.fs._create_handle(self.path)
+        pass
 
     def _upload_chunk(self, final=False):
         """Internal function to add a chunk of data to a started upload"""
-        self.buffer.seek(0)
-        data = self.buffer.getvalue()
-
-        data_chunks = [
-            data[start:end] for start, end in self._to_sized_blocks(len(data))
-        ]
-
-        for data_chunk in data_chunks:
-            self.fs._add_data(handle=self.handle, data=data_chunk)
-
-        if final:
-            self.fs._close_handle(handle=self.handle)
-            return True
+        pass
 
     def _fetch_range(self, start, end):
         """Internal function to download a block of data"""
-        return_buffer = b""
-        length = end - start
-        for chunk_start, chunk_end in self._to_sized_blocks(length, start):
-            return_buffer += self.fs._get_data(
-                path=self.path, start=chunk_start, end=chunk_end
-            )
-
-        return return_buffer
+        pass
 
     def _to_sized_blocks(self, length, start=0):
         """Helper function to split a range from 0 to total_length into blocksizes"""
-        end = start + length
-        for data_chunk in range(start, end, self.blocksize):
-            data_start = data_chunk
-            data_end = min(end, data_chunk + self.blocksize)
-            yield data_start, data_end
+        pass
