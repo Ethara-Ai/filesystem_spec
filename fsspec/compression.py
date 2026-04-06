@@ -8,7 +8,7 @@ from fsspec.spec import AbstractBufferedFile
 
 
 def noop_file(file, mode, **kwargs):
-    return file
+    pass
 
 
 # TODO: files should also be available as contexts
@@ -54,16 +54,7 @@ def register_compression(name, callback, extensions, force=False):
 
 
 def unzip(infile, mode="rb", filename=None, **kwargs):
-    if "r" not in mode:
-        filename = filename or "file"
-        z = ZipFile(infile, mode="w", **kwargs)
-        fo = z.open(filename, mode="w")
-        fo.close = lambda closer=fo.close: closer() or z.close()
-        return fo
-    z = ZipFile(infile)
-    if filename is None:
-        filename = z.namelist()[0]
-    return z.open(filename, mode="r", **kwargs)
+    pass
 
 
 register_compression("zip", unzip, "zip")
@@ -79,7 +70,7 @@ try:  # pragma: no cover
     from isal import igzip
 
     def isal(infile, mode="rb", **kwargs):
-        return igzip.IGzipFile(fileobj=infile, mode=mode, **kwargs)
+        pass
 
     register_compression("gzip", isal, "gz")
 except ImportError:
@@ -120,21 +111,17 @@ class SnappyFile(AbstractBufferedFile):
             self.codec = snappy.StreamCompressor()
 
     def _upload_chunk(self, final=False):
-        self.buffer.seek(0)
-        out = self.codec.add_chunk(self.buffer.read())
-        self.infile.write(out)
-        return True
+        pass
 
     def seek(self, loc, whence=0):
         raise NotImplementedError("SnappyFile is not seekable")
 
     def seekable(self):
-        return False
+        pass
 
     def _fetch_range(self, start, end):
         """Get the specified set of bytes from remote"""
-        data = self.infile.read(end - start)
-        return self.codec.decompress(data)
+        pass
 
 
 try:
@@ -167,12 +154,7 @@ except ImportError:
         import zstandard as zstd
 
         def zstandard_file(infile, mode="rb"):
-            if "r" in mode:
-                cctx = zstd.ZstdDecompressor()
-                return cctx.stream_reader(infile)
-            else:
-                cctx = zstd.ZstdCompressor(level=10)
-                return cctx.stream_writer(infile)
+            pass
 
         register_compression("zstd", zstandard_file, "zst")
     except ImportError:
@@ -182,4 +164,4 @@ except ImportError:
 
 def available_compressions():
     """Return a list of the implemented compressions."""
-    return list(compr)
+    pass

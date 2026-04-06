@@ -34,27 +34,7 @@ def register_implementation(name, cls, clobber=False, errtxt=None):
         If given, then a failure to import the given class will result in this
         text being given.
     """
-    if isinstance(cls, str):
-        if name in known_implementations and clobber is False:
-            if cls != known_implementations[name]["class"]:
-                raise ValueError(
-                    f"Name ({name}) already in the known_implementations and clobber "
-                    f"is False"
-                )
-        else:
-            known_implementations[name] = {
-                "class": cls,
-                "err": errtxt or f"{cls} import failed for protocol {name}",
-            }
-
-    else:
-        if name in registry and clobber is False:
-            if _registry[name] is not cls:
-                raise ValueError(
-                    f"Name ({name}) already in the registry and clobber is False"
-                )
-        else:
-            _registry[name] = cls
+    pass
 
 
 # protocols mapped to the class which implements them. This dict can be
@@ -253,22 +233,7 @@ def get_filesystem_class(protocol):
     import may fail. In this case, the string in the "err" field of the
     ``known_implementations`` will be given as the error message.
     """
-    if not protocol:
-        protocol = default
-
-    if protocol not in registry:
-        if protocol not in known_implementations:
-            raise ValueError(f"Protocol not known: {protocol}")
-        bit = known_implementations[protocol]
-        try:
-            register_implementation(protocol, _import_class(bit["class"]))
-        except ImportError as e:
-            raise ImportError(bit.get("err")) from e
-    cls = registry[protocol]
-    if getattr(cls, "protocol", None) in ("abstract", None):
-        cls.protocol = protocol
-
-    return cls
+    pass
 
 
 s3_msg = """Your installed version of s3fs is very old and known to cause
@@ -290,22 +255,7 @@ def _import_class(fqp: str):
     This can import arbitrary modules. Make sure you haven't installed any modules
     that may execute malicious code at import time.
     """
-    if ":" in fqp:
-        mod, name = fqp.rsplit(":", 1)
-    else:
-        mod, name = fqp.rsplit(".", 1)
-
-    is_s3 = mod == "s3fs"
-    mod = importlib.import_module(mod)
-    if is_s3 and mod.__version__.split(".") < ["0", "5"]:
-        warnings.warn(s3_msg)
-    for part in name.split("."):
-        mod = getattr(mod, part)
-
-    if not isinstance(mod, type):
-        raise TypeError(f"{fqp} is not a class")
-
-    return mod
+    pass
 
 
 def filesystem(protocol, **storage_options):
@@ -314,15 +264,7 @@ def filesystem(protocol, **storage_options):
     ``storage_options`` are specific to the protocol being chosen, and are
     passed directly to the class.
     """
-    if protocol == "arrow_hdfs":
-        warnings.warn(
-            "The 'arrow_hdfs' protocol has been deprecated and will be "
-            "removed in the future. Specify it as 'hdfs'.",
-            DeprecationWarning,
-        )
-
-    cls = get_filesystem_class(protocol)
-    return cls(**storage_options)
+    pass
 
 
 def available_protocols():
@@ -330,4 +272,4 @@ def available_protocols():
 
     Note that any given protocol may require extra packages to be importable.
     """
-    return list(known_implementations)
+    pass

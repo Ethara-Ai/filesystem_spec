@@ -33,20 +33,11 @@ class Transaction:
 
     def start(self):
         """Start a transaction on this FileSystem"""
-        self.files = deque()  # clean up after previous failed completions
-        self.fs._intrans = True
+        pass
 
     def complete(self, commit=True):
         """Finish transaction: commit or discard all deferred files"""
-        while self.files:
-            f = self.files.popleft()
-            if commit:
-                f.commit()
-            else:
-                f.discard()
-        self.fs._intrans = False
-        self.fs._transaction = None
-        self.fs = None
+        pass
 
 
 class FileActor:
@@ -54,17 +45,13 @@ class FileActor:
         self.files = []
 
     def commit(self):
-        for f in self.files:
-            f.commit()
-        self.files.clear()
+        pass
 
     def discard(self):
-        for f in self.files:
-            f.discard()
-        self.files.clear()
+        pass
 
     def append(self, f):
-        self.files.append(f)
+        pass
 
 
 class DaskTransaction(Transaction):
@@ -82,9 +69,4 @@ class DaskTransaction(Transaction):
 
     def complete(self, commit=True):
         """Finish transaction: commit or discard all deferred files"""
-        if commit:
-            self.files.commit().result()
-        else:
-            self.files.discard().result()
-        self.fs._intrans = False
-        self.fs = None
+        pass

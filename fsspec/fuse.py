@@ -24,49 +24,16 @@ class FUSEr(Operations):
         self._ready_file = ready_file
 
     def getattr(self, path, fh=None):
-        logger.debug("getattr %s", path)
-        if self._ready_file and path in ["/.fuse_ready", ".fuse_ready"]:
-            return {"type": "file", "st_size": 5}
-
-        path = "".join([self.root, path.lstrip("/")]).rstrip("/")
-        try:
-            info = self.fs.info(path)
-        except FileNotFoundError as exc:
-            raise FuseOSError(ENOENT) from exc
-
-        data = {"st_uid": info.get("uid", 1000), "st_gid": info.get("gid", 1000)}
-        perm = info.get("mode", 0o777)
-
-        if info["type"] != "file":
-            data["st_mode"] = stat.S_IFDIR | perm
-            data["st_size"] = 0
-            data["st_blksize"] = 0
-        else:
-            data["st_mode"] = stat.S_IFREG | perm
-            data["st_size"] = info["size"]
-            data["st_blksize"] = 5 * 2**20
-            data["st_nlink"] = 1
-        data["st_atime"] = info["atime"] if "atime" in info else time.time()
-        data["st_ctime"] = info["ctime"] if "ctime" in info else time.time()
-        data["st_mtime"] = info["mtime"] if "mtime" in info else time.time()
-        return data
+        pass
 
     def readdir(self, path, fh):
-        logger.debug("readdir %s", path)
-        path = "".join([self.root, path.lstrip("/")])
-        files = self.fs.ls(path, False)
-        files = [os.path.basename(f.rstrip("/")) for f in files]
-        return [".", ".."] + files
+        pass
 
     def mkdir(self, path, mode):
-        path = "".join([self.root, path.lstrip("/")])
-        self.fs.mkdir(path)
-        return 0
+        pass
 
     def rmdir(self, path):
-        path = "".join([self.root, path.lstrip("/")])
-        self.fs.rmdir(path)
-        return 0
+        pass
 
     def read(self, path, size, offset, fh):
         logger.debug("read %s", (path, size, offset))
@@ -80,63 +47,25 @@ class FUSEr(Operations):
         return out
 
     def write(self, path, data, offset, fh):
-        logger.debug("write %s", (path, offset))
-        f = self.cache[fh]
-        f.seek(offset)
-        f.write(data)
-        return len(data)
+        pass
 
     def create(self, path, flags, fi=None):
-        logger.debug("create %s", (path, flags))
-        fn = "".join([self.root, path.lstrip("/")])
-        self.fs.touch(fn)  # OS will want to get attributes immediately
-        f = self.fs.open(fn, "wb")
-        self.cache[self.counter] = f
-        self.counter += 1
-        return self.counter - 1
+        pass
 
     def open(self, path, flags):
-        logger.debug("open %s", (path, flags))
-        fn = "".join([self.root, path.lstrip("/")])
-        if flags % 2 == 0:
-            # read
-            mode = "rb"
-        else:
-            # write/create
-            mode = "wb"
-        self.cache[self.counter] = self.fs.open(fn, mode)
-        self.counter += 1
-        return self.counter - 1
+        pass
 
     def truncate(self, path, length, fh=None):
-        fn = "".join([self.root, path.lstrip("/")])
-        if length != 0:
-            raise NotImplementedError
-        # maybe should be no-op since open with write sets size to zero anyway
-        self.fs.touch(fn)
+        pass
 
     def unlink(self, path):
-        fn = "".join([self.root, path.lstrip("/")])
-        try:
-            self.fs.rm(fn, False)
-        except (OSError, FileNotFoundError) as exc:
-            raise FuseOSError(EIO) from exc
+        pass
 
     def release(self, path, fh):
-        try:
-            if fh in self.cache:
-                f = self.cache[fh]
-                f.close()
-                self.cache.pop(fh)
-        except Exception as e:
-            print(e)
-        return 0
+        pass
 
     def chmod(self, path, mode):
-        if hasattr(self.fs, "chmod"):
-            path = "".join([self.root, path.lstrip("/")])
-            return self.fs.chmod(path, mode)
-        raise NotImplementedError
+        pass
 
 
 def run(
@@ -183,22 +112,7 @@ def run(
         to file.
 
     """
-    func = lambda: FUSE(
-        ops_class(fs, path, ready_file=ready_file),
-        mount_point,
-        nothreads=not threads,
-        foreground=foreground,
-    )
-    if not foreground:
-        th = threading.Thread(target=func)
-        th.daemon = True
-        th.start()
-        return th
-    else:  # pragma: no cover
-        try:
-            func()
-        except KeyboardInterrupt:
-            pass
+    pass
 
 
 def main(args):
@@ -231,10 +145,7 @@ def main(args):
 
     class RawDescriptionArgumentParser(argparse.ArgumentParser):
         def format_help(self):
-            usage = super().format_help()
-            parts = usage.split("\n\n")
-            parts[1] = self.description.rstrip()
-            return "\n\n".join(parts)
+            pass
 
     parser = RawDescriptionArgumentParser(prog="fsspec.fuse", description=main.__doc__)
     parser.add_argument("--version", action="version", version=__version__)
